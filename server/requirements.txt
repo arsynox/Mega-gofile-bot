@@ -1,0 +1,6 @@
+python-telegram-bot==20.3
+requests==2.31.0
+Flask==2.3.3
+flask-limiter==3.10.0
+gunicorn==21.2.0
+pycryptodome==3.18.0  # Pre-built wheel that works on Render
