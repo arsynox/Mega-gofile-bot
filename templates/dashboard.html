@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel - Mega to GoFile Converter</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Admin Panel - Mega to GoFile Converter</h1>
+        </header>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>🔄 Total Conversions</h3>
+                <div class="stat-value">{{ stats.total_conversions }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>✅ Successful</h3>
+                <div class="stat-value">{{ stats.successful_conversions }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>❌ Failed</h3>
+                <div class="stat-value">{{ stats.failed_conversions }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>⏱️ Bot Uptime</h3>
+                <div class="stat-value">{{ uptime }}</div>
+            </div>
+        </div>
+        
+        <div class="charts-container">
+            <div class="chart-box">
+                <h2>Conversion Status</h2>
+                <canvas id="statusChart" height="250"></canvas>
+            </div>
+            <div class="chart-box">
+                <h2>Recent Activity</h2>
+                <canvas id="activityChart" height="250"></canvas>
+            </div>
+        </div>
+        
+        <div class="admin-section">
+            <h2>👥 Admin Management</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Admin ID</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for admin_id in admins %}
+                    <tr>
+                        <td>{{ admin_id }}</td>
+                        <td class="actions">
+                            <form action="{{ url_for('remove_admin') }}" method="POST" style="display:inline;">
+                                <input type="hidden" name="admin_id" value="{{ admin_id }}">
+                                <button type="submit" class="btn btn-remove">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <div class="add-admin-form">
+                <form action="{{ url_for('add_admin') }}" method="POST">
+                    <input type="number" name="admin_id" placeholder="Enter Telegram User ID" required>
+                    <button type="submit" class="btn btn-add">Add Admin</button>
+                </form>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Bot Panel v1.0 | Secure Admin Interface | Last updated: {{ current_time }}</p>
+        </footer>
+    </div>
+
+    <script>
+        // Status Chart
+        const statusCtx = document.getElementById('statusChart').getContext('2d');
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Successful', 'Failed'],
+                datasets: [{
+                    data: [{{ stats.successful_conversions }}, {{ stats.failed_conversions }}],
+                    backgroundColor: ['#27ae60', '#e74c3c'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Activity Chart
+        const activityCtx = document.getElementById('activityChart').getContext('2d');
+        new Chart(activityCtx, {
+            type: 'line',
+            data: {
+                labels: {{ hourly_labels|safe }},
+                datasets: [{
+                    label: 'Conversions per Hour',
+                    data: {{ hourly_data|safe }},
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+  </html>
