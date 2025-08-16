@@ -3,9 +3,11 @@ import re
 import tempfile
 import requests
 import time
-import json
 import threading
-from mega import Mega
+import base64
+import json
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 from telegram import Update, ParseMode
 
@@ -61,6 +63,67 @@ def update_stats(success=True):
     except Exception as e:
         print(f"Error updating stats: {str(e)}")
 
+def decrypt_key(enc_key, shared_key):
+    """Decrypt Mega key using shared key"""
+    key = shared_key[:16]
+    iv = shared_key[16:32]
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    decrypted = cipher.decrypt(enc_key)
+    return unpad(decrypted, AES.block_size)
+
+def mega_download_url(url, output_path):
+    """Download file from Mega.nz without mega.py dependency"""
+    # Extract file ID and key from URL
+    match = re.search(r'mega\.(nz|co)/file/([a-zA-Z0-9]+)#([a-zA-Z0-9_-]+)', url)
+    if not match:
+        raise ValueError("Invalid Mega URL format")
+    
+    file_id = match.group(2)
+    key_str = match.group(3)
+    
+    # Parse the key string
+    parts = key_str.split('!')
+    if len(parts) < 2:
+        raise ValueError("Invalid Mega key format")
+    
+    file_key = parts[0]
+    shared_key = parts[1] if len(parts) > 1 else ""
+    
+    # Convert keys to bytes
+    file_key_bytes = base64.urlsafe_b64decode(file_key + '==')
+    shared_key_bytes = base64.urlsafe_b64decode(shared_key + '==') if shared_key else b''
+    
+    # Get file attributes
+    api_url = f"https://g.api.mega.co.nz/cs?id=1&n={file_id}"
+    payload = [{
+        "a": "g",
+        "g": "1",
+        "p": file_id
+    }]
+    
+    response = requests.post(api_url, data=json.dumps(payload))
+    response.raise_for_status()
+    
+    data = response.json()[0]
+    if "g" not in data:
+        raise Exception(f"Failed to get download URL: {data}")
+    
+    download_url = data["g"]
+    file_size = data["s"]
+    
+    # Download the file
+    print(f"Downloading {file_size} bytes from {download_url}...")
+    
+    response = requests.get(download_url, stream=True)
+    response.raise_for_status()
+    
+    with open(output_path, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+    
+    return output_path
+
 @admin_only
 def convert_mega_to_gofile(update: Update, context: CallbackContext):
     """Converts Mega.nz link to GoFile.io link"""
@@ -97,8 +160,6 @@ def convert_mega_to_gofile(update: Update, context: CallbackContext):
 
     try:
         # Step 1: Download from Mega.nz (no login required)
-        mega = Mega()
-        m = mega.login()  # Public session (no credentials)
         status_msg.edit_text(
             "🔄 Processing your request...\n\n"
             "1️⃣ Downloading from Mega.nz ✅\n"
@@ -107,8 +168,12 @@ def convert_mega_to_gofile(update: Update, context: CallbackContext):
         
         # Download to temporary directory
         with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = m.download_url(mega_url, tmpdir)
-            filename = os.path.basename(file_path)
+            # Extract filename from URL for proper saving
+            filename = f"file_{int(time.time())}"
+            file_path = os.path.join(tmpdir, filename)
+            
+            # Download the file
+            mega_download_url(mega_url, file_path)
             
             # Step 2: Upload to GoFile.io (no login required)
             status_msg.edit_text(
