@@ -106,7 +106,7 @@ A Telegram bot that converts Mega.nz file links to GoFile.io links without requi
    - Hourly activity charts
    - Admin management interface
 
-![Admin Panel Screenshot](https://i.imgur.com/7XbRk9L.png)
+![Admin Panel Screenshot]
 
 ## 🤖 Bot Commands
 
