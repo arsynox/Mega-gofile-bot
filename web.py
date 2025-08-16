@@ -178,19 +178,28 @@ def remove_admin():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
-@app.route('/stats')
-def get_stats():
+@app.route('/stats', methods=['POST'])
+def update_stats():
     """API endpoint for worker to update stats"""
     if not session.get('logged_in'):
         return jsonify({"error": "Unauthorized"}), 401
     
-    return jsonify({
-        "total_conversions": stats["total_conversions"],
-        "successful_conversions": stats["successful_conversions"],
-        "failed_conversions": stats["failed_conversions"],
-        "last_conversion": stats["last_conversion"],
-        "active_users": len(stats["active_users"])
-    })
+    try:
+        data = request.get_json()
+        success = data.get('success', True)
+        
+        with stats_lock:
+            stats["total_conversions"] += 1
+            if success:
+                stats["successful_conversions"] += 1
+            else:
+                stats["failed_conversions"] += 1
+            stats["last_conversion"] = datetime.now().isoformat()
+            save_stats()
+            
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     # Load initial data
